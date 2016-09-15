@@ -85,7 +85,7 @@ struct MbedClientDevice device = {
 /** LCD setting **/
 #define LCD_ONOFF              (1)                 /* Select  0(without LCD) or 1(with LCD) */
 #if LCD_ONOFF
-#define LCD_TYPE               (1)                 /* Select  0(4.3inch) or 1(7.1inch) */
+#define LCD_TYPE               (0)                 /* Select  0(4.3inch) or 1(7.1inch) */
 #endif
 /*****************************/
 
