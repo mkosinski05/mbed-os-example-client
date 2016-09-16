@@ -12,6 +12,10 @@
             "help": "WiFi Password",
             "value": "\"Password\""
         },
+        "wifi-security": {
+            "help": "Type of encryption for connection",
+            "value": "NSAPI_SECURITY_WPA2"
+        },
         "wifi-tx": {
             "help": "TX pin for serial connection to external device",
             "value": "D1"
@@ -21,9 +25,7 @@
             "value": "D0"
         }
     },
-    "macros": ["MBEDTLS_USER_CONFIG_FILE=\"mbedtls_mbed_client_config.h\"",
-               "MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES",
-               "MBEDTLS_TEST_NULL_ENTROPY"],
+    "macros": ["MBEDTLS_USER_CONFIG_FILE=\"mbedtls_mbed_client_config.h\""],
     "target_overrides": {
         "*": {
             "target.features_add": ["CLIENT", "COMMON_PAL"],
@@ -37,6 +39,9 @@
         "NUCLEO_F411RE": {
             "wifi-tx": "PA_11",
             "wifi-rx": "PA_12"
+        },
+        "RZ_A1H": {
+            "target.macros_add": ["MBEDTLS_TEST_NULL_ENTROPY", "MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES"]
         }
     }
 }
