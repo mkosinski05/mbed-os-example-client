@@ -6,6 +6,7 @@
 #include "DisplayBace.h"
 #include "ImageReaderSource.h"
 #include "DisplayApp.h"
+#include "AsciiFont.h"
 
 #define VIDEO_CVBS             (0)                 /* Analog  Video Signal */
 #define VIDEO_CMOS_CAMERA      (1)                 /* Digital Video Signal */
@@ -71,6 +72,13 @@
 #define FRAME_BUFFER_BYTE_PER_PIXEL   (4u)
 #define FRAME_BUFFER_STRIDE           (((VIDEO_PIXEL_HW * FRAME_BUFFER_BYTE_PER_PIXEL) + 31u) & ~31u)
 
+#if LCD_ONOFF
+#define VIDEO_PIXEL_HW_STR              (VIDEO_PIXEL_HW - 64)
+#define VIDEO_PIXEL_VW_STR              (VIDEO_PIXEL_VW - 64)
+#define FRAME_BUFFER_BYTE_PER_PIXEL_STR (2u)
+#define FRAME_BUFFER_STRIDE_STR         (((VIDEO_PIXEL_HW_STR * FRAME_BUFFER_BYTE_PER_PIXEL_STR) + 31u) & ~31u)
+#endif
+
 static DisplayBase Display;
 static DisplayApp  display_app;
 static Timer decode_timer;
@@ -83,6 +91,11 @@ static PwmOut      lcd_cntrst(P8_15);
 /* 32 bytes aligned */
 static uint8_t user_frame_buffer0[FRAME_BUFFER_STRIDE * VIDEO_PIXEL_VW]__attribute((aligned(32)));
 static uint8_t user_frame_buffer1[FRAME_BUFFER_STRIDE * VIDEO_PIXEL_VW]__attribute((aligned(32)));
+#if LCD_ONOFF
+static uint8_t user_frame_buffer_string[FRAME_BUFFER_STRIDE_STR * VIDEO_PIXEL_VW_STR]__attribute((aligned(32)));
+static AsciiFont ascii_font(user_frame_buffer_string, VIDEO_PIXEL_HW_STR, VIDEO_PIXEL_VW_STR, FRAME_BUFFER_STRIDE_STR, FRAME_BUFFER_BYTE_PER_PIXEL_STR);
+static bool      string_draw;
+#endif
 static uint8_t * decode_buffer = user_frame_buffer0;
 static uint8_t * FrameBufferTbl[FRAME_BUFFER_NUM] = {user_frame_buffer0, user_frame_buffer1};
 static volatile int32_t vfield_count = 0;
@@ -315,6 +328,25 @@ void zxing_init(void (*pfunc)(char * addr, int size)) {
     /* Wait for first video drawing */
     Wait_Vfield(2);
 #if LCD_ONOFF
+    DisplayBase::rect_t rect;
+
+    /* The layer by which the touch panel location is drawn */
+    ascii_font.Erase(0x00000000);  /* rrrrGBAR (r:Reserve G:Green B:Blue A:Alpha R:Red */
+    dcache_clean(user_frame_buffer_string, sizeof(user_frame_buffer_string));
+    rect.vs = 32;
+    rect.vw = VIDEO_PIXEL_VW_STR;
+    rect.hs = 32;
+    rect.hw = VIDEO_PIXEL_HW_STR;
+    Display.Graphics_Read_Setting(
+        DisplayBase::GRAPHICS_LAYER_1,
+        (void *)user_frame_buffer_string,
+        FRAME_BUFFER_STRIDE_STR,
+        DisplayBase::GRAPHICS_FORMAT_ARGB4444,
+        DisplayBase::WR_RD_WRSWA_32_16BIT,
+        &rect
+    );
+    Display.Graphics_Start(DisplayBase::GRAPHICS_LAYER_1);
+    string_draw = false;
     /* Start of LCD */
     Start_LCD_Display(FrameBufferTbl[write_buff_num]);
     /* Backlight on */
@@ -362,8 +394,37 @@ int zxing_loop() {
             if (p_callback_func != NULL) {
                 p_callback_func(*decode_str, size);
             }
+#if LCD_ONOFF
+            /* Drow string */
+            ascii_font.Erase(0x00000090);  /* rrrrGBAR (r:Reserve G:Green B:Blue A:Alpha R:Red */
+            int rest_size = strlen(*decode_str);
+            int draw_idx = 0;
+            int draw_size;
+            int draw_line = 0;
+
+            while (rest_size > 0) {
+                draw_size = ascii_font.DrawStr(*decode_str + draw_idx, 6, 5 + (18 * draw_line), 0x0000ffff, 2);
+                if (draw_size <= 0) {
+                    break;
+                }
+                rest_size -= draw_size;
+                draw_idx += draw_size;
+                draw_line++;
+            }
+           
+            dcache_clean(user_frame_buffer_string, sizeof(user_frame_buffer_string));
+            string_draw = true;
+#endif
             decode_wait_time = 500;
         } else {
+#if LCD_ONOFF
+            if (string_draw != false) {
+                /* Clear string */
+                ascii_font.Erase(0x00000000);  /* rrrrGBAR (r:Reserve G:Green B:Blue A:Alpha R:Red */
+                dcache_clean(user_frame_buffer_string, sizeof(user_frame_buffer_string));
+                string_draw = false;
+            }
+#endif
             decode_wait_time = 10;
         }
     }
