@@ -78,17 +78,10 @@ MbedClient mbed_client(device);
 #if(1)  //for zxing with camera
 InterruptIn unreg_button(USER_BUTTON0);
 #else
-// In case of K64F board , there is button resource available
-// to change resource value and unregister
-#ifdef TARGET_K64F
-// Set up Hardware interrupt button.
-InterruptIn obs_button(SW2);
-InterruptIn unreg_button(SW3);
-#else
+
 //In non K64F boards , set up a timer to simulate updating resource,
 // there is no functionality to unregister.
 Ticker timer;
-#endif
 #endif
 
 // LED Output
@@ -99,13 +92,17 @@ DigitalOut led1(LED1);
  * When the function blink is executed, the pattern is read, and the LED
  * will blink based on the pattern.
  */
+
 class LedResource {
 public:
     LedResource() {
+        /* Step 2.2  
+        output.printf("Start Led Resource\n");
         // create ObjectID with metadata tag of '3201', which is 'digital output'
         led_object = M2MInterfaceFactory::create_object("3201");
         M2MObjectInstance* led_inst = led_object->create_object_instance();
-
+        */
+        /* Step 2.3
         // 5853 = Multi-state output
         M2MResource* pattern_res = led_inst->create_dynamic_resource("5853", "Pattern",
             M2MResourceInstance::STRING, false);
@@ -113,14 +110,18 @@ public:
         pattern_res->set_operation(M2MBase::GET_PUT_ALLOWED);
         // set initial pattern (toggle every 200ms. 7 toggles in total)
         pattern_res->set_value((const uint8_t*)"500:500:500:500:500:500:500", 27);
-
+        */
+        /* Step 2.11
         // there's not really an execute LWM2M ID that matches... hmm...
         M2MResource* led_res = led_inst->create_dynamic_resource("5850", "Blink",
             M2MResourceInstance::OPAQUE, false);
+        */
+        /* Step 
         // we allow executing a function here...
         led_res->set_operation(M2MBase::POST_ALLOWED);
         // when a POST comes in, we want to execute the led_execute_callback
         led_res->set_execute_function(execute_callback(this, &LedResource::blink));
+        */
     }
 
     M2MObject* get_object() {
@@ -128,6 +129,7 @@ public:
     }
 
     void blink(void *) {
+        /* Step 2.12
         // read the value of 'Pattern'
         M2MObjectInstance* inst = led_object->object_instance();
         M2MResource* res = inst->resource("5853");
@@ -158,6 +160,7 @@ public:
 
         // do_blink is called with the vector, and starting at -1
         do_blink(v, 0);
+        */
     }
 
 private:
@@ -166,6 +169,7 @@ private:
     void do_blink(std::vector<uint32_t>* pattern, uint16_t position) {
         // blink the LED
         led1 = !led1;
+        output.printf(".");
 
         // up the position, if we reached the end of the vector
         if (position >= pattern->size()) {
@@ -183,14 +187,16 @@ private:
     }
 };
 
-#if(1)  //for zxing with camera
+
 /*
  * The Zxing contains a function (send string).
  * When `handle_string_send` is executed, the string after decoding is sent.
  */
+
 class ZxingResource {
 public:
     ZxingResource() {
+         /* Step 2.26
         // create ObjectID with metadata tag of '3202', which is 'send string'
         zxing_object = M2MInterfaceFactory::create_object("3202");
         M2MObjectInstance* zxing_inst = zxing_object->create_object_instance();
@@ -201,7 +207,8 @@ public:
         zxing_res->set_operation(M2MBase::GET_ALLOWED);
         // set initial value (all values in mbed Client are buffers)
         // to be able to read this data easily in the Connector console, we'll use a string
-        zxing_res->set_value((uint8_t*)"0", 1);        
+        zxing_res->set_value((uint8_t*)"0", 1);   
+        */     
     }
 
     ~ZxingResource() {
@@ -211,9 +218,9 @@ public:
         return zxing_object;
     }
 
-    /*
-     * When you success the decode process of barcode, we send the string after decoding to mbed Device Connector.
-     */
+    
+    // When you success the decode process of barcode, we send the string after decoding to mbed Device Connector.
+    
     void handle_string_send(char * addr, int size) {
         M2MObjectInstance* inst = zxing_object->object_instance();
         M2MResource* res = inst->resource("5700");
@@ -227,11 +234,13 @@ public:
 private:
     M2MObject* zxing_object;
 };
-#else
+
+
 /*
  * The button contains one property (click count).
  * When `handle_button_click` is executed, the counter updates.
  */
+ /* SIMULATED BUTTON
 class ButtonResource {
 public:
     ButtonResource(): counter(0) {
@@ -240,7 +249,7 @@ public:
         M2MObjectInstance* btn_inst = btn_object->create_object_instance();
         // create resource with ID '5501', which is digital input counter
         M2MResource* btn_res = btn_inst->create_dynamic_resource("5501", "Button",
-            M2MResourceInstance::INTEGER, true /* observable */);
+            M2MResourceInstance::INTEGER, true );
         // we can read this value
         btn_res->set_operation(M2MBase::GET_ALLOWED);
         // set initial value (all values in mbed Client are buffers)
@@ -255,21 +264,19 @@ public:
         return btn_object;
     }
 
-    /*
-     * When you press the button, we read the current value of the click counter
-     * from mbed Device Connector, then up the value with one.
-     */
+    
+    // When you press the button, we read the current value of the click counter
+    // from mbed Device Connector, then up the value with one.
+    
     void handle_button_click() {
         M2MObjectInstance* inst = btn_object->object_instance();
         M2MResource* res = inst->resource("5501");
 
         // up counter
         counter++;
-#ifdef TARGET_K64F
-        printf("handle_button_click, new value of counter is %d\r\n", counter);
-#else
+
         printf("simulate button_click, new value of counter is %d\r\n", counter);
-#endif
+
         // serialize the value of counter as a string, and tell connector
         char buffer[20];
         int size = sprintf(buffer,"%d",counter);
@@ -280,15 +287,16 @@ private:
     M2MObject* btn_object;
     uint16_t counter;
 };
-#endif
+SIMULATED BUTTON END*/
 
 
 // Network interaction must be performed outside of interrupt context
-#if(1)  //for zxing with camera
+/* Step
 ZxingResource zxing_resource;
-#else
+*/
+/* SIMULATED BUTTON
 Semaphore updates(0);
-#endif
+*/
 volatile bool registered = false;
 volatile bool clicked = false;
 osThreadId mainThread;
@@ -319,14 +327,14 @@ Ticker status_ticker;
 DigitalOut status_led(LED1);
 void blinky() { status_led = !status_led; }
 
-#if(1)  //for zxing with camera
+/* Step 2.27
 extern void zxing_init(void (*pfunc)(char * addr, int size));
 extern int zxing_loop();
 
 static void callback_zxing(char * addr, int size) {
     zxing_resource.handle_string_send(addr, size);
 }
-#endif
+*/
 
 // Entry point to the program
 int main() {
@@ -362,6 +370,7 @@ Add MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES and MBEDTLS_TEST_NULL_ENTROPY in mbed_app
 #if MBED_CONF_APP_NETWORK_INTERFACE == WIFI
     output.printf("\n\rUsing WiFi \r\n");
     output.printf("\n\rConnecting to WiFi..\r\n");
+    output.printf("\n\rAccessPoint : %s\r\n",MBED_CONF_APP_WIFI_SSID);
 #if(1) //bp3595
     usb1en = 1;
     Thread::wait(5);
@@ -395,32 +404,20 @@ Add MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES and MBEDTLS_TEST_NULL_ENTROPY in mbed_app
     } else {
         output.printf("No IP address\r\n");
     }
+    status_ticker.detach();
+    status_led = 0;
 
-#if(1)  //for zxing with camera
     LedResource led_resource;
 
-    // On press of USER_BUTTON0 button on GR-PEACH board, example application
-    // will call unregister API towards mbed Device Connector
-    unreg_button.fall(&unregister);
-#else
+/* SIMULATED BUTTON
     // we create our button and LED resources
     ButtonResource button_resource;
     LedResource led_resource;
 
-#ifdef TARGET_K64F
-    // On press of SW3 button on K64F board, example application
-    // will call unregister API towards mbed Device Connector
-    //unreg_button.fall(&mbed_client,&MbedClient::test_unregister);
-    unreg_button.fall(&unregister);
 
-    // Observation Button (SW2) press will send update of endpoint resource values to connector
-    obs_button.fall(&button_clicked);
-#else
     // Send update of endpoint resource values to connector every 15 seconds periodically
     timer.attach(&button_clicked, 15.0);
-#endif
-#endif
-
+*/
     // Create endpoint interface to manage register and unregister
     mbed_client.create_interface(MBED_SERVER_ADDRESS, network_interface);
 
@@ -433,13 +430,16 @@ Add MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES and MBEDTLS_TEST_NULL_ENTROPY in mbed_app
 
     // Add objects to list
     object_list.push_back(device_object);
-#if(1)  //for zxing with camera
+/* Step 2.27
     object_list.push_back(zxing_resource.get_object());
-#else
+*/
+/* SIMULATED BUTTON
     object_list.push_back(button_resource.get_object());
-#endif
-    object_list.push_back(led_resource.get_object());
+*/
 
+/* Step 2.4
+    object_list.push_back(led_resource.get_object());
+*/
     // Set endpoint registration object
     mbed_client.set_register_object(register_object);
 
@@ -447,40 +447,32 @@ Add MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES and MBEDTLS_TEST_NULL_ENTROPY in mbed_app
     mbed_client.test_register(register_object, object_list);
     registered = true;
 
-#if(1)  //for zxing with camera
-    zxing_init(&callback_zxing);
+
+
     Timer update_timer;
     update_timer.reset();
     update_timer.start();
-
+/*  Step 2.28
+    zxing_init(&callback_zxing);
+*/
     while (registered) {
+/*  Step 2.29
         if (zxing_loop() == 0) {
             update_timer.reset();
-        } else if (update_timer.read() >= 25) {
+        } else */
+        if (update_timer.read() >= 25) {
             mbed_client.test_update_register();
             update_timer.reset();
         } else {
             // do nothing
         }
+        
+        
         Thread::wait(5);
     }
-#else
-    while (true) {
-        updates.wait(25000);
-        if(registered) {
-            if(!clicked) {
-                mbed_client.test_update_register();
-            }
-        }else {
-            break;
-        }
-        if(clicked) {
-           clicked = false;
-            button_resource.handle_button_click();
-        }
-    }
-#endif
+
 
     mbed_client.test_unregister();
     status_ticker.detach();
 }
+
